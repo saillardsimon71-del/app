@@ -4,7 +4,7 @@ import { View } from "react-native";
 
 import { photoUrl, type Project } from "@/src/api";
 import { Ionicons, PressScale, ProgressBar, StatusBadge, Txt, statusColors } from "@/src/components/ui";
-import { fmtDate } from "@/src/format";
+import { daysFromToday, fmtDate } from "@/src/format";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 export function ProjectCard({ p }: { p: Project }) {
@@ -28,6 +28,7 @@ export function ProjectCard({ p }: { p: Project }) {
         </View>
         <Txt variant="caption" numberOfLines={1}>
           {p.type} · {p.client_name} · MAD {fmtDate(p.mad_date)}
+          {p.projected_mad && p.projected_mad > p.mad_date ? <Txt variant="caption" color={colors.warning}>{` · prévue +${daysFromToday(p.projected_mad) - daysFromToday(p.mad_date)} j`}</Txt> : null}
         </Txt>
         <ProgressBar value={p.progress} color={p.status === "en_retard" ? sc.fg : undefined} />
       </View>

@@ -5,8 +5,10 @@ import { View } from "react-native";
 import { KeyboardAwareScrollView, KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, useClients, useSettings, type Client, type ClientInput } from "@/src/api";
+import { api, deleteClientDocument, fileUrl, uploadClientDocument, useClients, useSettings, type Client, type ClientInput, type LocalPhoto } from "@/src/api";
 import { ConfirmSheet } from "@/src/components/confirm-sheet";
+import { PhotoSourceSheet } from "@/src/components/photo-sheet";
+import { PhotoStrip, type StripItem } from "@/src/components/photo-strip";
 import { useToast } from "@/src/components/toast";
 import { Button, Field, Group, Row, Stepper, Txt } from "@/src/components/ui";
 import { makeStyles, spacing } from "@/src/theme";
@@ -25,6 +27,38 @@ export default function ClientForm() {
   const [saving, setSaving] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [picker, setPicker] = useState(false);
+  const [pending, setPending] = useState<LocalPhoto[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  const isPdf = (f: LocalPhoto) => f.type === "application/pdf";
+  const docItems: StripItem[] = [
+    ...(existing?.documents ?? []).map((d) => ({ key: d.id, uri: fileUrl(d), kind: d.kind, name: d.name })),
+    ...pending.map((f) => ({ key: f.uri, uri: f.uri, pending: true, kind: isPdf(f) ? ("pdf" as const) : ("image" as const), name: f.name })),
+  ];
+
+  const onPicked = async (file: LocalPhoto) => {
+    if (!id) return setPending((l) => [...l, file]);
+    setUploading(true);
+    try {
+      await uploadClientDocument(id, file);
+      await qc.invalidateQueries({ queryKey: ["clients"] });
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onRemoveDoc = async (item: StripItem) => {
+    if (item.pending) return setPending((l) => l.filter((f) => f.uri !== item.key));
+    try {
+      await deleteClientDocument(id!, item.key);
+      await qc.invalidateQueries({ queryKey: ["clients"] });
+    } catch (e) {
+      toast((e as Error).message, "error");
+    }
+  };
 
   useEffect(() => {
     if (existing) setForm({ name: existing.name, contact: existing.contact ?? "", email: existing.email ?? "", validation_delay_days: existing.validation_delay_days, notes: existing.notes ?? "" });
@@ -37,9 +71,17 @@ export default function ClientForm() {
     if (!form.name.trim()) return toast("Le nom du client est obligatoire", "error");
     setSaving(true);
     try {
-      await api<Client>(id ? `/clients/${id}` : "/clients", { method: id ? "PUT" : "POST", body: { ...form, name: form.name.trim() } });
+      const c = await api<Client>(id ? `/clients/${id}` : "/clients", { method: id ? "PUT" : "POST", body: { ...form, name: form.name.trim() } });
+      let failed = 0;
+      for (const f of pending) {
+        try {
+          await uploadClientDocument(c.id, f);
+        } catch {
+          failed += 1;
+        }
+      }
       await qc.invalidateQueries();
-      toast(id ? "Client mis à jour" : "Client ajouté");
+      toast(failed ? `Client ajouté · ${failed} fichier${failed > 1 ? "s" : ""} non envoyé${failed > 1 ? "s" : ""}` : id ? "Client mis à jour" : "Client ajouté", failed ? "info" : "success");
       router.back();
     } catch (e) {
       toast((e as Error).message, "error");
@@ -93,6 +135,9 @@ export default function ClientForm() {
             right={<Stepper testID="client-form-delay" value={form.validation_delay_days} min={1} max={60} suffix="j" onChange={(v) => setForm({ ...form, validation_delay_days: v })} />}
           />
         </Group>
+        <Group title="Photos & documents" footer="Croquis, idées, cahiers des charges PDF apportés par le client.">
+          <PhotoStrip testID="client-form-documents" items={docItems} busy={uploading} onAdd={() => setPicker(true)} onRemove={onRemoveDoc} />
+        </Group>
         <Group title="Notes">
           <Field label="Notes" value={form.notes ?? ""} onChangeText={(t) => setForm({ ...form, notes: t })} placeholder="Préférences, interlocuteurs…" multiline last testID="client-form-notes-input" />
         </Group>
@@ -107,6 +152,7 @@ export default function ClientForm() {
           <Button label={id ? "Enregistrer" : "Ajouter le client"} onPress={save} loading={saving} testID="client-form-save-button" />
         </View>
       </KeyboardStickyView>
+      <PhotoSourceSheet visible={picker} onClose={() => setPicker(false)} onPicked={onPicked} allowDocuments />
       <ConfirmSheet
         visible={confirm}
         title="Supprimer ce client ?"

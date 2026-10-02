@@ -17,8 +17,9 @@ import requests
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-from planning import compute_plan, lever_suggestions, summarize, TYPE_DEFAULTS  # noqa: E402
+from planning import compute_plan, lever_suggestions, shift_remaining, summarize, TYPE_DEFAULTS  # noqa: E402
 from storage import APP_NAME, get_object, init_storage, put_object  # noqa: E402
+from pdf_export import build_pdf  # noqa: E402
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -65,8 +66,22 @@ class ClientIn(BaseModel):
     notes: Optional[str] = None
 
 
+class Photo(BaseModel):
+    id: str
+    path: str
+    name: str
+    content_type: str
+    size: int
+    created_at: str = Field(default_factory=now_iso)
+
+
+class Document(Photo):
+    kind: Literal["image", "pdf"] = "image"
+
+
 class Client(BaseDocument, ClientIn):
     created_at: str = Field(default_factory=now_iso)
+    documents: list[Document] = []
 
 
 class Step(BaseModel):
@@ -80,18 +95,11 @@ class Step(BaseModel):
     client_validation: bool = False
     done: bool = False
     done_at: Optional[str] = None
+    actual_end: Optional[str] = None
+    comment: Optional[str] = None
 
 
 ProjectType = Literal["NPD", "DUP", "FLK", "MLD"]
-
-
-class Photo(BaseModel):
-    id: str
-    path: str
-    name: str
-    content_type: str
-    size: int
-    created_at: str = Field(default_factory=now_iso)
 
 
 class ProjectIn(BaseModel):
@@ -145,7 +153,9 @@ class Project(BaseDocument):
 
 
 class StepPatch(BaseModel):
-    done: bool
+    done: Optional[bool] = None
+    actual_end: Optional[date] = None
+    comment: Optional[str] = None
 
 
 # ---------- Helpers ----------
@@ -304,7 +314,8 @@ async def save_replan(p: Project, data: ProjectIn) -> Project:
     steps = []
     for s in plan["steps"]:
         old = prev.get(s["key"])
-        steps.append(Step(**s, done=old.done if old else False, done_at=old.done_at if old else None))
+        steps.append(Step(**s, done=old.done if old else False, done_at=old.done_at if old else None,
+                          actual_end=old.actual_end if old else None, comment=old.comment if old else None))
     d = data.plan_input()
     new = Project(**{**d, **plan, "steps": steps, "photos": p.photos, "created_at": p.created_at, "updated_at": now_iso()})
     await db.projects.replace_one({"_id": ObjectId(p.id)}, new.to_mongo())
@@ -322,16 +333,65 @@ async def update_project(pid: str, data: ProjectIn):
 async def patch_step(pid: str, key: str, body: StepPatch):
     p = await load_project(pid)
     found = False
+    fields = body.model_fields_set
     for s in p.steps:
         if s.key == key:
-            s.done = body.done
-            s.done_at = now_iso() if body.done else None
             found = True
+            if "done" in fields and body.done is not None:
+                s.done = body.done
+                s.done_at = now_iso() if body.done else None
+                if not body.done:
+                    s.actual_end = None
+                elif s.actual_end is None and "actual_end" not in fields:
+                    s.actual_end = date.today().isoformat()
+            if "actual_end" in fields:
+                s.actual_end = body.actual_end.isoformat() if body.actual_end else None
+            if "comment" in fields:
+                s.comment = (body.comment or "").strip() or None
     if not found:
         raise HTTPException(404, "Étape introuvable")
     await db.projects.update_one({"_id": ObjectId(pid)},
                                  {"$set": {"steps": [s.model_dump() for s in p.steps], "updated_at": now_iso()}})
     return await project_out(p)
+
+
+@api_router.get("/projects/{pid}/replan")
+async def replan_preview(pid: str):
+    p = await load_project(pid)
+    steps = [s.model_dump() for s in p.steps]
+    shifted, delta = shift_remaining(steps, date.today())
+    projected = max(s["end"] for s in shifted) if shifted else p.mad_date
+    return {"delta_days": delta, "projected_mad": projected, "mad_date": p.mad_date,
+            "shifted_count": sum(1 for s in p.steps if not s.done) if delta else 0}
+
+
+@api_router.post("/projects/{pid}/replan")
+async def replan_apply(pid: str):
+    p = await load_project(pid)
+    shifted, delta = shift_remaining([s.model_dump() for s in p.steps], date.today())
+    if delta <= 0:
+        raise HTTPException(400, "Aucune étape en retard à replanifier")
+    p.steps = [Step(**s) for s in shifted]
+    await db.projects.update_one({"_id": ObjectId(pid)},
+                                 {"$set": {"steps": [s.model_dump() for s in p.steps], "updated_at": now_iso()}})
+    return await project_out(p)
+
+
+@api_router.get("/projects/{pid}/export.pdf")
+async def export_pdf(pid: str):
+    p = await load_project(pid)
+    out = await project_out(p)
+    photos: list[bytes] = []
+    for ph in p.photos[:6]:
+        try:
+            content, _ = await run_in_threadpool(get_object, ph.path)
+            photos.append(content)
+        except Exception:  # noqa: BLE001
+            logger.warning("photo %s unavailable for PDF", ph.path)
+    pdf = await run_in_threadpool(build_pdf, out, photos)
+    safe = "".join(ch if ch.isalnum() or ch in " -_" else "_" for ch in p.name).strip() or "retroplanning"
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{safe}.pdf"'})
 
 
 @api_router.post("/projects/{pid}/archive")
@@ -348,34 +408,40 @@ async def delete_project(pid: str):
     return {"ok": True}
 
 
-# Photos (croquis, idées client) — stockage objet
-MAX_PHOTO_BYTES = 15 * 1024 * 1024
-EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/heif": "heif"}
+# Photos (croquis, idées client) & documents — stockage objet
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+IMAGE_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/heif": "heif"}
+DOC_EXT = {**IMAGE_EXT, "application/pdf": "pdf"}
 
 
-@api_router.post("/projects/{pid}/photos")
-async def upload_photo(pid: str, file: UploadFile = File(...)):
-    p = await load_project(pid)
+async def store_upload(file: UploadFile, folder: str, allowed: dict[str, str]) -> Document:
     ctype = (file.content_type or "").lower()
-    if ctype not in EXT:
-        raise HTTPException(400, "Format non pris en charge (JPEG, PNG, WebP ou HEIC)")
+    if ctype not in allowed:
+        raise HTTPException(400, "Format non pris en charge (JPEG, PNG, WebP, HEIC" + (" ou PDF)" if "application/pdf" in allowed else ")"))
     data = await file.read()
     if not data:
         raise HTTPException(400, "Fichier vide")
-    if len(data) > MAX_PHOTO_BYTES:
-        raise HTTPException(400, "Photo trop lourde (15 Mo max)")
-    photo_id = uuid.uuid4().hex
-    path = f"{APP_NAME}/uploads/{pid}/{photo_id}.{EXT[ctype]}"
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(400, "Fichier trop lourd (20 Mo max)")
+    doc_id = uuid.uuid4().hex
+    path = f"{APP_NAME}/uploads/{folder}/{doc_id}.{allowed[ctype]}"
     try:
         result = await run_in_threadpool(put_object, path, data, ctype)
     except requests.HTTPError as e:
         status = e.response.status_code if e.response is not None else 500
         if status == 402:
-            raise HTTPException(402, "Stockage épuisé : rechargez votre solde pour ajouter des photos")
+            raise HTTPException(402, "Stockage épuisé : rechargez votre solde pour ajouter des fichiers")
         logger.exception("upload failed")
-        raise HTTPException(502, "Le stockage des photos est indisponible")
-    photo = Photo(id=photo_id, path=result["path"], name=file.filename or f"{photo_id}.{EXT[ctype]}",
-                  content_type=ctype, size=len(data))
+        raise HTTPException(502, "Le stockage des fichiers est indisponible")
+    return Document(id=doc_id, path=result["path"], name=file.filename or f"{doc_id}.{allowed[ctype]}",
+                    content_type=ctype, size=len(data), kind="pdf" if ctype == "application/pdf" else "image")
+
+
+@api_router.post("/projects/{pid}/photos")
+async def upload_photo(pid: str, file: UploadFile = File(...)):
+    p = await load_project(pid)
+    doc = await store_upload(file, pid, IMAGE_EXT)
+    photo = Photo(**doc.model_dump(exclude={"kind"}))
     await db.projects.update_one({"_id": ObjectId(pid)},
                                  {"$push": {"photos": photo.model_dump()}, "$set": {"updated_at": now_iso()}})
     p.photos.append(photo)
@@ -401,6 +467,24 @@ async def read_file(path: str):
     except requests.HTTPError:
         raise HTTPException(404, "Fichier introuvable")
     return Response(content=content, media_type=ctype, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
+# Documents client (photos + PDF)
+@api_router.post("/clients/{cid}/documents")
+async def upload_client_document(cid: str, file: UploadFile = File(...)):
+    await get_client(cid)
+    doc = await store_upload(file, f"clients/{cid}", DOC_EXT)
+    await db.clients.update_one({"_id": ObjectId(cid)}, {"$push": {"documents": doc.model_dump()}})
+    return (await get_client(cid)).out()
+
+
+@api_router.delete("/clients/{cid}/documents/{doc_id}")
+async def delete_client_document(cid: str, doc_id: str):
+    c = await get_client(cid)
+    if not any(d.id == doc_id for d in c.documents):
+        raise HTTPException(404, "Document introuvable")
+    await db.clients.update_one({"_id": ObjectId(cid)}, {"$pull": {"documents": {"id": doc_id}}})
+    return (await get_client(cid)).out()
 
 
 # Dashboard
@@ -432,7 +516,7 @@ async def dashboard():
         "upcoming": upcoming[:30],
         "pending_validations": validations,
         "next_mad": [{"id": p["id"], "name": p["name"], "client_name": p["client_name"], "mad_date": p["mad_date"],
-                      "type": p["type"], "status": p["status"], "progress": p["progress"]}
+                      "type": p["type"], "status": p["status"], "progress": p["progress"], "projected_mad": p["projected_mad"]}
                      for p in projects if p["status"] != "termine"][:5],
     }
 

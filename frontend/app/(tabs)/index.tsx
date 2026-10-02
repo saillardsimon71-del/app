@@ -9,7 +9,7 @@ import { api, useDashboard, useInvalidateAll, type DashItem } from "@/src/api";
 import { ScreenHeader } from "@/src/components/screen-header";
 import { useToast } from "@/src/components/toast";
 import { Button, CenterState, IconButton, Ionicons, PressScale, StatusBadge, Txt } from "@/src/components/ui";
-import { fmtDate } from "@/src/format";
+import { daysFromToday, fmtDate } from "@/src/format";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -111,7 +111,10 @@ export default function Dashboard() {
                 <PressScale key={p.id} testID={`dashboard-mad-${p.id}`} onPress={() => router.push(`/project/${p.id}`)} style={[styles.madRow, i < data.next_mad.length - 1 && styles.divider]}>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Txt variant="headline" numberOfLines={1} style={{ fontSize: 16 }}>{p.name}</Txt>
-                    <Txt variant="caption">{p.client_name} · MAD {fmtDate(p.mad_date)}</Txt>
+                    <Txt variant="caption">
+                      {p.client_name} · MAD {fmtDate(p.mad_date)}
+                      {p.projected_mad && p.projected_mad > p.mad_date ? <Txt variant="caption" color={colors.warning}>{` · prévue +${daysFromToday(p.projected_mad) - daysFromToday(p.mad_date)} j`}</Txt> : null}
+                    </Txt>
                   </View>
                   <StatusBadge status={p.status} />
                 </PressScale>

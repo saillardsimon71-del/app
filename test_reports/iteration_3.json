@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 3 testing of PGP Glass Tracker — step notes, replan, PDF export, client documents. Backend: 27/27 pytest tests PASS (20 regression + 7 new iteration3 tests). New /app/backend/tests/test_iteration3.py covers: (1) PATCH /api/projects/{pid}/steps/{key} — comment+actual_end leaves done unchanged, done=true keeps actual_end, done=false clears actual_end, comment='' → null, unknown key → 404; (2) GET /api/projects/{pid}/replan preview returns delta_days>0, projected_mad>mad_date, shifted_count>0 on a late project and delta_days=0 on an on-time one. POST /api/projects/{pid}/replan on a late project returns 200, late_count=0, projected_mad = old_projected + delta; a second POST returns 400; (3) GET /api/projects/{pid}/export.pdf returns 200 with Content-Type=application/pdf, body starts with %PDF and Content-Disposition contains filename=…; also verified for a project with an uploaded PNG; (4) POST /api/clients/{cid}/documents accepts PDF (kind='pdf') and PNG (kind='image'), rejects text/plain with 400. GET /api/files/{doc.path} returns 200 with correct content-type. PUT /api/clients/{cid} preserves documents[]. DELETE on unknown id → 404; DELETE on valid id removes doc; (5) GET /api/projects and GET /api/dashboard both return projected_mad on projects and next_mad. All regression tests (test_api.py + test_photos.py) still green. Frontend (390x844): Opened a late project (Flacon Éclat 50 ml) — project-detail-late-alert visible with project-detail-replan-button → tap opens confirm-sheet with replan-preview and replan-projected-mad (text '7 sept. 2027 (+100 j)'); confirm-sheet-cancel-button closes sheet; reopening and confirm-sheet-confirm-button applies the replan: alert disappears, project-detail-mad KPI shows '30/05/27 — prévue +100 j'. Opened a step (step-open-etude_go) → step-sheet with step-sheet-done-switch, step-sheet-actual-date (visible when done=true) and step-sheet-comment-input; step-sheet-save-button persists and closes the sheet, the row updates. Tap on step-check-{key} toggles state directly without opening the sheet. project-detail-share-button opens a new popup (PDF stream). On clients tab, client-row-* opens the client form; the 'Photos & documents' group renders a PhotoStrip with client-form-documents-add → opens photo-sheet with photo-sheet-camera, photo-sheet-library, photo-sheet-document, photo-sheet-cancel-button; cancel closes the sheet. client-form-save-button saves and navigates back to /clients. No red screens, no JS errors. Only pre-existing RN-Web deprecation warnings (shadow*, pointerEvents) in console — carried from iterations 1-2.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "shadow* style props", "issue": "RN-Web deprecation 'shadow* style props are deprecated. Use boxShadow'. Pre-existing. Reference: /app/frontend/app/project/[id].tsx (styles.card/kpi/alert) and other screens."},
+      {"component": "pointerEvents prop", "issue": "RN-Web deprecation 'props.pointerEvents is deprecated. Use style.pointerEvents'. Pre-existing. Reference: /app/frontend/app/project/[id].tsx:231."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_api.py",
+    "/app/backend/tests/test_photos.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Minor, pre-existing) Replace shadow* RN style props by boxShadow and move pointerEvents into style.pointerEvents for RN-Web parity.",
+    "(Nit) Replan apply mutates the demo data: after a successful POST /api/projects/{pid}/replan the project is no longer late and /demo/seed is idempotent so late state cannot be recreated by re-seeding. The iteration3 tests work around this by patching a past done step back to done=false; if a cleaner re-seed-with-late-steps endpoint is desired for QA, consider adding /api/demo/reset."
+  ],
+  "critical_code_review_comments": [
+    "server.py patch_step uses body.model_fields_set to distinguish 'omitted' from 'explicit None' — correct and matches the acceptance criteria (comment:'' → None, actual_end:null → None, done:false also clears actual_end, done:true keeps actual_end when already set).",
+    "server.py replan_apply correctly guards against delta<=0 (400) and persists shifted steps atomically. replan_preview exposes delta_days, projected_mad and shifted_count.",
+    "pdf_export.build_pdf handles the 'MAD cible / prévue (+N j)' KPI correctly when projected_mad > mad_date; images converted to RGB JPEG with thumbnail to avoid oversized PDF.",
+    "store_upload reuses the same helper for both /projects/{pid}/photos (IMAGE_EXT) and /clients/{cid}/documents (DOC_EXT with PDF). Nice DRY — no duplication.",
+    "pre-existing TS errors in app/(tabs)/_layout.tsx and src/theme.ts remain as flagged by the main agent — ignored."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration3.py (new, 7 tests, 27/27 pass with regression)",
+    "/app/test_reports/pytest/pytest_results.xml (regenerated)",
+    "/app/test_reports/iteration_3.json (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Demo seed used (idempotent). Transient TEST_it3_step_notes, TEST_it3_pdf projects created and cleaned up. One demo step (Flacon Éclat 50 ml / etude_brief) was PATCHed to done=false during UI testing to re-create late state so the replan banner could be tested; it remains undone at the end of this iteration (does not affect further runs).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend URL: https://task-tracker-pgp.preview.emergentagent.com (EXPO_PUBLIC_BACKEND_URL). pytest.ini runs with -n 2 --dist loadscope — all 27 tests pass in ~4 s. If no project is late when testing /replan, mark a done step with an end<today back to done=false (see _find_late_project() in test_iteration3.py). confirm-sheet-cancel-button is defined inside /app/frontend/src/components/confirm-sheet.tsx. step-sheet-actual-date only renders when step-sheet-done-switch is ON. client-form-documents is the ScrollView testID; client-form-documents-add is the + button (pattern: `${parent}-add`).",
+  "rca_of_issue": "N/A — no defects found. All 27 backend tests pass, all iteration-3 frontend flows (replan banner, replan sheet with preview, apply, step sheet with comment/actual_end/done, direct step check toggle, share PDF, client documents form + photo-sheet) work on web viewport 390x844."
+}

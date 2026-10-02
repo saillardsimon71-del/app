@@ -157,6 +157,24 @@ def lever_suggestions(p: dict, validation_delay: int, order_offset: int) -> list
     return out
 
 
+def shift_remaining(steps: list[dict], today: date) -> tuple[list[dict], int]:
+    """Décale toutes les étapes non terminées du plus grand retard constaté (en jours)."""
+    late = [(today - date.fromisoformat(s["end"])).days for s in steps
+            if not s.get("done") and date.fromisoformat(s["end"]) < today]
+    delta = max(late) if late else 0
+    if delta <= 0:
+        return steps, 0
+    out = []
+    for s in steps:
+        if s.get("done"):
+            out.append(s)
+            continue
+        out.append({**s,
+                    "start": (date.fromisoformat(s["start"]) + timedelta(days=delta)).isoformat(),
+                    "end": (date.fromisoformat(s["end"]) + timedelta(days=delta)).isoformat()})
+    return out, delta
+
+
 def summarize(steps: list[dict], today: date) -> dict:
     total = len(steps)
     done = sum(1 for s in steps if s.get("done"))
@@ -189,4 +207,5 @@ def summarize(steps: list[dict], today: date) -> dict:
         "progress": round(done / total, 3) if total else 0,
         "done_count": done, "step_count": total, "late_count": len(late),
         "status": status, "next_step": pending[0] if pending else None, "phases": phases,
+        "projected_mad": max(s["end"] for s in steps) if steps else None,
     }

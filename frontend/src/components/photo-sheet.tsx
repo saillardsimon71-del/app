@@ -1,3 +1,4 @@
+import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import { Linking, Modal, Platform, Pressable, View } from "react-native";
@@ -26,7 +27,17 @@ function toLocalPhoto(a: ImagePicker.ImagePickerAsset): LocalPhoto {
   return { uri: a.uri, name: a.fileName ?? `photo-${Date.now()}.${ext}`, type };
 }
 
-export function PhotoSourceSheet({ visible, onClose, onPicked }: { visible: boolean; onClose: () => void; onPicked: (p: LocalPhoto) => void }) {
+export function PhotoSourceSheet({
+  visible,
+  onClose,
+  onPicked,
+  allowDocuments,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onPicked: (p: LocalPhoto) => void;
+  allowDocuments?: boolean;
+}) {
   const insets = useSafeAreaInsets();
   const styles = useStyles();
   const { colors } = useTheme();
@@ -36,6 +47,20 @@ export function PhotoSourceSheet({ visible, onClose, onPicked }: { visible: bool
   const close = () => {
     setBlocked(null);
     onClose();
+  };
+
+  const pickDocument = async () => {
+    setBusy(true);
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: "application/pdf", copyToCacheDirectory: true });
+      const a = res.assets?.[0];
+      if (!res.canceled && a) {
+        onPicked({ uri: a.uri, name: a.name ?? `document-${Date.now()}.pdf`, type: a.mimeType ?? "application/pdf" });
+        close();
+      }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const pick = async (source: Source) => {
@@ -70,11 +95,12 @@ export function PhotoSourceSheet({ visible, onClose, onPicked }: { visible: bool
           </>
         ) : (
           <>
-            <Txt variant="headline">Ajouter une photo</Txt>
-            <Txt variant="callout" color={colors.muted}>Croquis, dessin ou idée apportée par le client.</Txt>
+            <Txt variant="headline">{allowDocuments ? "Ajouter un document" : "Ajouter une photo"}</Txt>
+            <Txt variant="callout" color={colors.muted}>{allowDocuments ? "Photos, croquis ou fichiers PDF du client." : "Croquis, dessin ou idée apportée par le client."}</Txt>
             <View style={styles.options}>
               <Option icon="camera-outline" label="Appareil photo" disabled={busy} onPress={() => pick("camera")} testID="photo-sheet-camera" />
               <Option icon="images-outline" label="Galerie" disabled={busy} onPress={() => pick("library")} testID="photo-sheet-library" />
+              {allowDocuments ? <Option icon="document-text-outline" label="Fichier PDF" disabled={busy} onPress={pickDocument} testID="photo-sheet-document" /> : null}
             </View>
             <Button label="Annuler" variant="plain" onPress={close} testID="photo-sheet-cancel-button" />
           </>

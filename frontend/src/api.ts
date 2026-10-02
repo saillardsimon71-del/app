@@ -17,6 +17,8 @@ export type Step = {
   client_validation: boolean;
   done: boolean;
   done_at?: string | null;
+  actual_end?: string | null;
+  comment?: string | null;
 };
 
 export type Phase = { key: string; name: string; start: string; end: string; done: number; total: number; late: number };
@@ -40,12 +42,14 @@ export type ProjectInput = {
 };
 
 export type Photo = { id: string; path: string; name: string; content_type: string; size: number; created_at: string };
+export type Document = Photo & { kind: "image" | "pdf" };
 
 export type Project = ProjectInput & {
   id: string;
   client_name: string;
   steps: Step[];
   photos: Photo[];
+  projected_mad: string | null;
   start_date: string;
   total_days: number;
   total_weeks: number;
@@ -87,9 +91,10 @@ export type Client = {
   validation_delay_days: number;
   notes?: string | null;
   project_count?: number;
+  documents?: Document[];
 };
 
-export type ClientInput = Omit<Client, "id" | "project_count">;
+export type ClientInput = Omit<Client, "id" | "project_count" | "documents">;
 
 export type Settings = { order_offset_days: number; default_validation_delay: number };
 
@@ -108,8 +113,11 @@ export type Dashboard = {
   late_steps: DashItem[];
   upcoming: DashItem[];
   pending_validations: number;
-  next_mad: { id: string; name: string; client_name: string; mad_date: string; type: ProjectType; status: Status; progress: number }[];
+  next_mad: { id: string; name: string; client_name: string; mad_date: string; type: ProjectType; status: Status; progress: number; projected_mad?: string | null }[];
 };
+
+export type ReplanPreview = { delta_days: number; projected_mad: string; mad_date: string; shifted_count: number };
+export type StepPatch = { done?: boolean; actual_end?: string | null; comment?: string | null };
 
 export async function api<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -131,9 +139,11 @@ export async function api<T>(path: string, init?: { method?: string; body?: unkn
 
 export type LocalPhoto = { uri: string; name: string; type: string };
 
-export const photoUrl = (p: Photo) => `${BASE}/files/${p.path}`;
+export const fileUrl = (p: Photo) => `${BASE}/files/${p.path}`;
+export const photoUrl = fileUrl;
+export const exportPdfUrl = (projectId: string) => `${BASE}/projects/${projectId}/export.pdf`;
 
-export async function uploadPhoto(projectId: string, photo: LocalPhoto): Promise<Project> {
+async function uploadFile<T>(path: string, photo: LocalPhoto): Promise<T> {
   const form = new FormData();
   if (Platform.OS === "web") {
     const blob = await (await fetch(photo.uri)).blob();
@@ -141,9 +151,9 @@ export async function uploadPhoto(projectId: string, photo: LocalPhoto): Promise
   } else {
     form.append("file", { uri: photo.uri, name: photo.name, type: photo.type } as unknown as Blob);
   }
-  const res = await fetch(`${BASE}/projects/${projectId}/photos`, { method: "POST", body: form });
+  const res = await fetch(`${BASE}${path}`, { method: "POST", body: form });
   if (!res.ok) {
-    let msg = "Impossible d'ajouter la photo";
+    let msg = "Impossible d'ajouter le fichier";
     try {
       const j = await res.json();
       if (typeof j.detail === "string") msg = j.detail;
@@ -153,8 +163,18 @@ export async function uploadPhoto(projectId: string, photo: LocalPhoto): Promise
   return res.json();
 }
 
+export const uploadPhoto = (projectId: string, photo: LocalPhoto) => uploadFile<Project>(`/projects/${projectId}/photos`, photo);
 export const deletePhoto = (projectId: string, photoId: string) =>
   api<Project>(`/projects/${projectId}/photos/${photoId}`, { method: "DELETE" });
+
+export const uploadClientDocument = (clientId: string, file: LocalPhoto) => uploadFile<Client>(`/clients/${clientId}/documents`, file);
+export const deleteClientDocument = (clientId: string, docId: string) =>
+  api<Client>(`/clients/${clientId}/documents/${docId}`, { method: "DELETE" });
+
+export const replanPreview = (projectId: string) => api<ReplanPreview>(`/projects/${projectId}/replan`);
+export const replanApply = (projectId: string) => api<Project>(`/projects/${projectId}/replan`, { method: "POST" });
+export const patchStep = (projectId: string, key: string, body: StepPatch) =>
+  api<Project>(`/projects/${projectId}/steps/${key}`, { method: "PATCH", body });
 
 export const useDashboard = () => useQuery({ queryKey: ["dashboard"], queryFn: () => api<Dashboard>("/dashboard") });
 export const useProjects = () => useQuery({ queryKey: ["projects"], queryFn: () => api<Project[]>("/projects") });

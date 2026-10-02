@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Modal, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -12,6 +13,8 @@ export function ConfirmSheet({
   onConfirm,
   onClose,
   loading,
+  variant = "destructive",
+  children,
 }: {
   visible: boolean;
   title: string;
@@ -20,6 +23,8 @@ export function ConfirmSheet({
   onConfirm: () => void;
   onClose: () => void;
   loading?: boolean;
+  variant?: "destructive" | "primary";
+  children?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   const styles = useStyles();
@@ -33,7 +38,8 @@ export function ConfirmSheet({
         <Txt variant="callout" color={colors.muted}>
           {message}
         </Txt>
-        <Button label={confirmLabel} variant="destructive" onPress={onConfirm} loading={loading} testID="confirm-sheet-confirm-button" />
+        {children}
+        <Button label={confirmLabel} variant={variant} onPress={onConfirm} loading={loading} testID="confirm-sheet-confirm-button" />
         <Button label="Annuler" variant="plain" onPress={onClose} testID="confirm-sheet-cancel-button" />
       </View>
     </Modal>
