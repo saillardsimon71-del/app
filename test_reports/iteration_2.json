@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 2 testing of PGP Glass Tracker focused on new photos feature and simplified UI. Backend: 20/20 pytest tests PASS (11 regression + 9 new photo tests). New /app/backend/tests/test_photos.py covers full photo lifecycle: POST /api/projects/{pid}/photos with real PNG bytes returns photos[] with {id,path,name,content_type,size}; rejects text/plain (400) and empty file (400); GET /api/files/{path} returns 200 with image/png bytes matching uploaded size; GET /api/files/autre/... returns 404; PUT /api/projects/{pid} with changed glass_cycles preserves photo IDs; DELETE unknown photo_id returns 404; DELETE valid photo_id removes it from photos[]. Regression suite (dashboard, projects, clients, planning preview) still green. Frontend (390x844): Accueil shows metric-active=3, metric-late=2, 8 dashboard-step-*, 3 dashboard-mad-* — tap on dashboard-mad opens project detail. Project detail renders name/status/mad/start/duration KPIs, 21 step-row-*, project-detail-gantt-toggle correctly shows/hides project-detail-gantt, project-detail-photos strip + project-detail-photos-add opens photo-sheet with camera/library/cancel options, and photo-sheet-cancel-button closes it. Project form (new project) shows Projet group (name, 2 client chips, mad-date), 4 Segmented type options (NPD/DUP/FLK/MLD), Photos & croquis with project-form-photos-add opening photo-sheet, project-form-advanced-toggle correctly expands code/moq/specs/preseries/packaging/notes fields, Rétroplanning preview with preview-total-weeks + preview-gantt, project-form-save-button creates project and redirects to detail. Projets tab lists 3 project-card-* cards with 'TYPE · client · MAD date' format. Clients tab shows 2 client-row-* without delay badge. Réglages tab contains only Rétroplanning and Données groups. No red screens, no console errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "shadow* style props", "issue": "RN-Web deprecation warning 'shadow* style props are deprecated. Use boxShadow'. Pre-existing (iteration 1). Non-blocking. Reference: /app/frontend/app/project/[id].tsx:295,300 and other screens."},
+      {"component": "pointerEvents prop", "issue": "RN-Web deprecation warning 'props.pointerEvents is deprecated. Use style.pointerEvents'. Reference: /app/frontend/app/project/[id].tsx:231 (<View ... pointerEvents=\"box-none\">)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_api.py",
+    "/app/backend/tests/test_photos.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Minor) Replace shadow* RN style props by boxShadow (and move pointerEvents into style={{pointerEvents:'box-none'}}) for React Native Web parity. Non-blocking.",
+    "(Nit) Stepper widgets (project-form-glass-cycles / project-form-decor-cycles / project-form-ptf-days) only propagate the parent testID to the inner +/- buttons; querying the root View by its testID returns null. Noted in iteration 1 — not a bug for the feature, use '{name}-plus' / '{name}-minus' in tests."
+  ],
+  "critical_code_review_comments": [
+    "server.py upload_photo: good — validates content_type via EXT whitelist (jpeg/png/webp/heic/heif), rejects empty payload (400), enforces 15 MB limit, maps upstream 402 to a user-friendly 'Stockage épuisé' message, maps other HTTPError to 502. $push on photos array and update_at bump are consistent.",
+    "server.py save_replan (PUT handler) correctly carries over p.photos to the new document; verified end-to-end in test_6_put_keeps_photos.",
+    "server.py read_file enforces path.startswith(APP_NAME + '/') before contacting storage, which prevents fetching arbitrary paths. 404 on missing object. Cache-Control immutable is appropriate for content-addressed uploads.",
+    "storage.py put_object/get_object retry once on 503 after resetting the storage key — reasonable for Emergent object storage warm-up."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_photos.py (new)",
+    "/app/test_reports/pytest/pytest_results.xml (regenerated, 20 passed)",
+    "/app/test_reports/iteration_2.json (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Created & cleaned up transient TEST_photos_proj (deleted by module-scoped fixture teardown) and TEST_UI2_photos (deleted via UI). Demo seed (2 clients + 3 projects) preserved.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend URL: https://task-tracker-pgp.preview.emergentagent.com (EXPO_PUBLIC_BACKEND_URL). pytest.ini pins -n 2 --dist loadscope; do NOT pass -p no:xdist (addopts always keeps -n/--dist). Backend tests live in /app/backend/tests/{test_api.py,test_photos.py,conftest.py} and all 20 pass in ~2 s. Photo helper _tiny_png() in test_photos.py produces a valid 1x1 PNG; multipart upload uses files={'file': (name, bytes, 'image/png')}. Tab navigation via get_by_text('Projets') is ambiguous because the Accueil screen has a 'Projets' section — prefer navigating by URL (/projects, /clients, /settings) or by the bottom-tab testIDs if present. Stepper parent testID is NOT applied to the root View; use '{id}-plus' / '{id}-minus' selectors.",
+  "rca_of_issue": "N/A — no defects found."
+}

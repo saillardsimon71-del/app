@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Platform } from "react-native";
 
 const BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
 
@@ -38,10 +39,13 @@ export type ProjectInput = {
   archived?: boolean;
 };
 
+export type Photo = { id: string; path: string; name: string; content_type: string; size: number; created_at: string };
+
 export type Project = ProjectInput & {
   id: string;
   client_name: string;
   steps: Step[];
+  photos: Photo[];
   start_date: string;
   total_days: number;
   total_weeks: number;
@@ -124,6 +128,33 @@ export async function api<T>(path: string, init?: { method?: string; body?: unkn
   }
   return res.json();
 }
+
+export type LocalPhoto = { uri: string; name: string; type: string };
+
+export const photoUrl = (p: Photo) => `${BASE}/files/${p.path}`;
+
+export async function uploadPhoto(projectId: string, photo: LocalPhoto): Promise<Project> {
+  const form = new FormData();
+  if (Platform.OS === "web") {
+    const blob = await (await fetch(photo.uri)).blob();
+    form.append("file", blob, photo.name);
+  } else {
+    form.append("file", { uri: photo.uri, name: photo.name, type: photo.type } as unknown as Blob);
+  }
+  const res = await fetch(`${BASE}/projects/${projectId}/photos`, { method: "POST", body: form });
+  if (!res.ok) {
+    let msg = "Impossible d'ajouter la photo";
+    try {
+      const j = await res.json();
+      if (typeof j.detail === "string") msg = j.detail;
+    } catch {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+export const deletePhoto = (projectId: string, photoId: string) =>
+  api<Project>(`/projects/${projectId}/photos/${photoId}`, { method: "DELETE" });
 
 export const useDashboard = () => useQuery({ queryKey: ["dashboard"], queryFn: () => api<Dashboard>("/dashboard") });
 export const useProjects = () => useQuery({ queryKey: ["projects"], queryFn: () => api<Project[]>("/projects") });

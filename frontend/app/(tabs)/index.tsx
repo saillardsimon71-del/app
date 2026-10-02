@@ -3,16 +3,15 @@ import { fr } from "date-fns/locale";
 import { router } from "expo-router";
 import { useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api, useDashboard, useInvalidateAll, type DashItem } from "@/src/api";
 import { ScreenHeader } from "@/src/components/screen-header";
 import { useToast } from "@/src/components/toast";
-import { Button, CenterState, IconButton, Ionicons, PressScale, ProgressBar, StatusBadge, Txt, TypeBadge, type IconName } from "@/src/components/ui";
-import { fmtDate, fmtShort, week } from "@/src/format";
+import { Button, CenterState, IconButton, Ionicons, PressScale, StatusBadge, Txt } from "@/src/components/ui";
+import { fmtDate } from "@/src/format";
 import { usesNativeTabs } from "@/src/navigation";
-import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
+import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 export default function Dashboard() {
   const styles = useStyles();
@@ -61,6 +60,7 @@ export default function Dashboard() {
 
   const data = q.data;
   const empty = data.active_count === 0 && data.next_mad.length === 0;
+  const toFollow = [...data.late_steps.map((s) => ({ s, late: true })), ...data.upcoming.map((s) => ({ s, late: false }))].slice(0, 8);
 
   return (
     <View style={styles.root}>
@@ -84,53 +84,33 @@ export default function Dashboard() {
           refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} tintColor={colors.brandPrimary} />}
           testID="dashboard-scroll"
         >
-          <View style={styles.grid}>
-            <Metric i={0} icon="layers-outline" label="Projets actifs" value={data.active_count} color={colors.brandPrimary} testID="metric-active" />
-            <Metric i={1} icon="alert-circle" label="En retard" value={data.counts.en_retard} color={colors.error} testID="metric-late" />
-            <Metric i={2} icon="time-outline" label="À risque (7 j)" value={data.counts.a_risque} color={colors.warning} testID="metric-risk" />
-            <Metric i={3} icon="person-circle-outline" label="Validations client" value={data.pending_validations} color={colors.info} testID="metric-validations" />
+          <View style={styles.metrics}>
+            <Metric label="Projets actifs" value={data.active_count} color={colors.brandPrimary} testID="metric-active" />
+            <View style={styles.vline} />
+            <Metric label="En retard" value={data.counts.en_retard} color={data.counts.en_retard ? colors.error : colors.brandPrimary} testID="metric-late" />
           </View>
 
-          <Section title="Alertes de retard" count={data.late_steps.length}>
-            {data.late_steps.length === 0 ? (
+          <Section title="À suivre">
+            {toFollow.length === 0 ? (
               <View style={styles.okBox} testID="dashboard-no-late">
                 <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                <Txt variant="callout">Aucune étape en retard. Tout est dans les temps.</Txt>
+                <Txt variant="callout">Rien d&apos;urgent. Tout est dans les temps.</Txt>
               </View>
             ) : (
               <View style={styles.list}>
-                {data.late_steps.slice(0, 8).map((s, i) => (
-                  <StepItem key={`${s.project_id}-${s.key}`} s={s} last={i === Math.min(7, data.late_steps.length - 1)} late />
+                {toFollow.map(({ s, late }, i) => (
+                  <StepItem key={`${s.project_id}-${s.key}`} s={s} late={late} last={i === toFollow.length - 1} />
                 ))}
               </View>
             )}
           </Section>
 
-          <Section title="Échéances" count={data.upcoming.length} hint="3 semaines">
-            {data.upcoming.length === 0 ? (
-              <Txt variant="callout" color={colors.muted}>Rien de prévu dans les 3 prochaines semaines.</Txt>
-            ) : (
-              <View style={styles.list}>
-                {data.upcoming.slice(0, 8).map((s, i) => (
-                  <StepItem key={`${s.project_id}-${s.key}`} s={s} last={i === Math.min(7, data.upcoming.length - 1)} />
-                ))}
-              </View>
-            )}
-          </Section>
-
-          <Section title="Prochaines MAD">
+          <Section title="Projets">
             <View style={styles.list}>
               {data.next_mad.map((p, i) => (
                 <PressScale key={p.id} testID={`dashboard-mad-${p.id}`} onPress={() => router.push(`/project/${p.id}`)} style={[styles.madRow, i < data.next_mad.length - 1 && styles.divider]}>
-                  <View style={styles.madDate}>
-                    <Txt variant="mono" color={colors.onBrandTertiary}>{week(p.mad_date)}</Txt>
-                  </View>
-                  <View style={{ flex: 1, gap: 6 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                      <TypeBadge type={p.type} />
-                      <Txt variant="label" numberOfLines={1} style={{ flex: 1 }}>{p.name}</Txt>
-                    </View>
-                    <ProgressBar value={p.progress} />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Txt variant="headline" numberOfLines={1} style={{ fontSize: 16 }}>{p.name}</Txt>
                     <Txt variant="caption">{p.client_name} · MAD {fmtDate(p.mad_date)}</Txt>
                   </View>
                   <StatusBadge status={p.status} />
@@ -144,54 +124,36 @@ export default function Dashboard() {
   );
 }
 
-function Metric({ icon, label, value, color, testID, i }: { icon: IconName; label: string; value: number; color: string; testID: string; i: number }) {
-  const styles = useStyles();
+function Metric({ label, value, color, testID }: { label: string; value: number; color: string; testID: string }) {
   return (
-    <Animated.View entering={FadeInDown.delay(i * 60).springify().damping(18)} style={styles.metric} testID={testID}>
-      <Ionicons name={icon} size={20} color={color} />
-      <Txt variant="largeTitle" style={{ color }} testID={`${testID}-value`}>{value}</Txt>
+    <View style={{ flex: 1, alignItems: "center", gap: 2 }} testID={testID}>
+      <Txt variant="largeTitle" style={{ color, fontSize: 36 }} testID={`${testID}-value`}>{value}</Txt>
       <Txt variant="caption">{label}</Txt>
-    </Animated.View>
+    </View>
   );
 }
 
-function Section({ title, count, hint, children }: { title: string; count?: number; hint?: string; children: React.ReactNode }) {
-  const { colors } = useTheme();
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View style={{ gap: spacing.md }}>
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: spacing.sm }}>
-        <Txt variant="title">{title}</Txt>
-        {count !== undefined ? <Txt variant="caption">{count}</Txt> : null}
-        <View style={{ flex: 1 }} />
-        {hint ? <Txt variant="caption" color={colors.muted}>{hint}</Txt> : null}
-      </View>
+      <Txt variant="title">{title}</Txt>
       {children}
     </View>
   );
 }
 
-function StepItem({ s, late, last }: { s: DashItem; late?: boolean; last?: boolean }) {
+function StepItem({ s, late, last }: { s: DashItem; late: boolean; last: boolean }) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const when = late ? `+${s.days_late} j` : s.days_left === 0 ? "Aujourd'hui" : `J-${s.days_left}`;
   return (
     <PressScale testID={`dashboard-step-${s.project_id}-${s.key}`} onPress={() => router.push(`/project/${s.project_id}`)} style={[styles.stepRow, !last && styles.divider]}>
-      <View style={[styles.stepIcon, { backgroundColor: late ? colors.errorSoft : s.client_validation ? colors.infoSoft : colors.brandTertiary }]}>
-        <Ionicons
-          name={late ? "alert" : s.client_validation ? "person-outline" : "calendar-outline"}
-          size={16}
-          color={late ? colors.error : s.client_validation ? colors.info : colors.brandPrimary}
-        />
-      </View>
+      <View style={[styles.dot, { backgroundColor: late ? colors.error : s.client_validation ? colors.info : colors.brandPrimary }]} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Txt variant="label" numberOfLines={1}>{s.name}</Txt>
-        <Txt variant="caption" numberOfLines={1}>{s.project_name} · {s.client_name}</Txt>
+        <Txt variant="body" numberOfLines={1} style={{ fontFamily: fonts.medium }}>{s.name}</Txt>
+        <Txt variant="caption" numberOfLines={1}>{s.project_name}</Txt>
       </View>
-      <View style={{ alignItems: "flex-end", gap: 2 }}>
-        <Txt variant="mono" color={late ? colors.error : colors.onSurface}>{fmtShort(s.end)}</Txt>
-        <Txt variant="caption" color={late ? colors.error : colors.muted}>
-          {late ? `+${s.days_late} j` : s.days_left === 0 ? "aujourd'hui" : `J-${s.days_left}`}
-        </Txt>
-      </View>
+      <Txt variant="label" color={late ? colors.error : colors.muted}>{when}</Txt>
     </PressScale>
   );
 }
@@ -199,20 +161,12 @@ function StepItem({ s, late, last }: { s: DashItem; late?: boolean; last?: boole
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surfaceSecondary },
   content: { padding: spacing.lg, gap: spacing.xl },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
-  metric: {
-    flexBasis: "47%",
-    flexGrow: 1,
-    backgroundColor: c.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    gap: 2,
-  },
+  metrics: { flexDirection: "row", alignItems: "center", backgroundColor: c.surface, borderRadius: radius.lg, paddingVertical: spacing.lg },
+  vline: { width: 1, height: 40, backgroundColor: c.divider },
   list: { backgroundColor: c.surface, borderRadius: radius.lg, overflow: "hidden" },
   divider: { borderBottomWidth: 1, borderBottomColor: c.divider },
   okBox: { flexDirection: "row", gap: spacing.sm, alignItems: "center", backgroundColor: c.surface, borderRadius: radius.lg, padding: spacing.lg },
-  stepRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, paddingHorizontal: spacing.lg, minHeight: 60 },
-  stepIcon: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  stepRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, minHeight: 60 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
   madRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.lg },
-  madDate: { width: 48, height: 48, borderRadius: radius.md, backgroundColor: c.brandTertiary, alignItems: "center", justifyContent: "center" },
 }));

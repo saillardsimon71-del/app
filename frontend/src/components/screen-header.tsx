@@ -30,7 +30,7 @@ export function ScreenHeader({ title, subtitle, right, children }: { title: stri
 }
 
 const useStyles = makeStyles((c) => ({
-  wrap: { backgroundColor: c.surfaceSecondary, borderBottomWidth: 1, borderBottomColor: c.divider },
+  wrap: { backgroundColor: c.surfaceSecondary },
   top: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.md },
   subtitle: { textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 },
 }));

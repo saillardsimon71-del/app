@@ -101,3 +101,7 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+## Iteration 2 — Simplification UI + photos de projet (02/10/2026)
+- Backend: `POST /api/projects/{pid}/photos` (multipart `file`, JPEG/PNG/WebP/HEIC, 15 Mo max) → Emergent Object Storage, `DELETE /api/projects/{pid}/photos/{photo_id}`, `GET /api/files/{path}` (sert l'image). `photos[]` dans Project, préservé lors du replan (PUT).
+- Frontend: accueil simplifié (2 métriques + liste « À suivre » + « Projets »), cartes projet épurées avec miniature, fiche projet (photo de couverture, strip « Photos & croquis », Gantt replié « Voir le planning », étapes compactes), formulaire (type en Segmented, « Options avancées » repliées, strip photos avec upload différé à la création), clients sans badge/hint, réglages allégés.
+- Tests manuels : upload/get/delete photo OK via python requests.

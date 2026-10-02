@@ -7,7 +7,6 @@ import { api, useInvalidateAll, useSettings, type Settings } from "@/src/api";
 import { ScreenHeader } from "@/src/components/screen-header";
 import { useToast } from "@/src/components/toast";
 import { Button, CenterState, Group, Row, Stepper, Txt } from "@/src/components/ui";
-import { TYPE_DEFAULTS, TYPE_INFO } from "@/src/format";
 import { usesNativeTabs } from "@/src/navigation";
 import { makeStyles, spacing, useTheme } from "@/src/theme";
 
@@ -66,7 +65,7 @@ export default function SettingsScreen() {
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomChrome + spacing.xl }]} testID="settings-scroll">
           <Group
             title="Rétroplanning"
-            footer="Les étapes Commande (présérie et production) démarrent ce nombre de jours avant le début de leur phase. Le délai par défaut s'applique aux nouveaux clients (référence : 10 j, soit les durées du planning standard)."
+            footer="Les commandes (présérie, production) sont passées ce nombre de jours avant la phase. Le délai client s'applique aux nouveaux clients."
           >
             <Row
               icon="cart-outline"
@@ -83,18 +82,6 @@ export default function SettingsScreen() {
             />
           </Group>
           {dirty ? <Button label="Enregistrer" onPress={save} loading={saving} testID="settings-save-button" style={{ marginBottom: spacing.xl }} /> : null}
-
-          <Group title="Cycles par défaut selon le type" footer="Proposition du document « Processus de développement produit ». Modifiables projet par projet.">
-            {(Object.keys(TYPE_INFO) as (keyof typeof TYPE_INFO)[]).map((t, i, arr) => (
-              <Row key={t} label={`${t} · ${TYPE_INFO[t].label}`} value={`Verre ${TYPE_DEFAULTS[t].glass} · Décor ${TYPE_DEFAULTS[t].decor}`} last={i === arr.length - 1} />
-            ))}
-          </Group>
-
-          <Group title="Leviers d'optimisation" footer="Activez-les dans la fiche projet lorsque la MAD est contrainte. Combinés, ils ramènent un NPD d'environ 49 à 35 semaines.">
-            <Row label="Verre — 2 échantillons" value="≈ 7 sem." />
-            <Row label="Décor — 2 échantillons" value="≈ 3-4 sem." />
-            <Row label="Présérie ∥ Production" value="≈ 7 sem." last />
-          </Group>
 
           <Group title="Données">
             <Row icon="sparkles-outline" label={seeding ? "Chargement…" : "Charger des projets d'exemple"} onPress={seed} last testID="settings-seed-demo-row" />

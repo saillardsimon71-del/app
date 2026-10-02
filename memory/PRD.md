@@ -19,8 +19,17 @@ Un seul utilisateur sans connexion · clients + projets + rétroplanning auto + 
 - Réglages : décalage commandes (45 j), délai par défaut, données de démo
 - Tests : backend 11/11, frontend tous parcours OK
 
+## Itération 2 (02/10/2026) — UI fluidifiée + photos
+- Accueil : 2 chiffres clés (actifs / en retard) + une seule liste « À suivre » (retards puis échéances) + liste « Projets »
+- Cartes projet épurées (miniature photo, nom, statut, « TYPE · client · MAD »)
+- Fiche projet : photo de couverture (1re photo), KPI simples, Gantt replié (« Voir le planning »), étapes compactes (nom + date / retard), brief sans lignes vides
+- Formulaire : type en segments + aide repliable, « Options avancées » repliées (référence, MOQ, specs, présérie, emballage, cycles, notes), aperçu rétroplanning compact
+- Clients sans badge/texte d'aide ; réglages réduits à Rétroplanning + Données ; traits de séparation superflus retirés
+- Photos (croquis/idées client) : Emergent Object Storage via `backend/storage.py` ; `POST/DELETE /api/projects/{id}/photos`, `GET /api/files/{path}` ; galerie + appareil photo (expo-image-picker, permissions gérées avec « Ouvrir les réglages ») ; ajout depuis la fiche et le formulaire (upload différé à la création)
+- Tests : backend 20/20 (test_photos.py), frontend tous parcours OK
+
 ## Backlog
 - P1 : replanification (décaler les étapes restantes quand une étape prend du retard), dates réelles par étape, notes/commentaires par étape
 - P1 : export PDF / partage du rétroplanning au client
-- P2 : pièces jointes (BAG, plans 3D) via stockage objet, vue calendrier, multi-utilisateurs
+- P2 : pièces jointes non-image (BAG, plans 3D PDF) via stockage objet, vue calendrier, multi-utilisateurs
 - P2 : durées de référence MLD spécifiques (à valider en interne)

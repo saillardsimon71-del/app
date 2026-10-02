@@ -86,7 +86,7 @@ export default function ClientForm() {
             testID="client-form-email-input"
           />
         </Group>
-        <Group title="Réactivité" footer="Référence : 10 jours = durées du planning standard. Un client réactif à 5 jours divise par deux chaque étape de validation de ses projets.">
+        <Group title="Réactivité" footer="10 jours = planning standard. Un client plus rapide raccourcit ses étapes de validation.">
           <Row
             label="Délai de validation"
             last
@@ -125,5 +125,5 @@ const useStyles = makeStyles((c) => ({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.sm, paddingBottom: spacing.sm, backgroundColor: c.surfaceSecondary },
   headerBtn: { minWidth: 88, paddingHorizontal: spacing.sm },
   content: { padding: spacing.lg, paddingBottom: 120 },
-  footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, backgroundColor: c.surfaceSecondary, borderTopWidth: 1, borderTopColor: c.divider },
+  footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, backgroundColor: c.surfaceSecondary },
 }));

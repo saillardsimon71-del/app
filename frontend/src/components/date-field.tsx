@@ -4,20 +4,21 @@ import { Modal, Platform, Pressable, Text, TextInput, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/src/components/ui";
-import { d, fmtLong, toISO, week } from "@/src/format";
+import { d, fmtLong, toISO } from "@/src/format";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
-export function DateField({ label, value, onChange, testID }: { label: string; value: string; onChange: (iso: string) => void; testID: string }) {
+export function DateField({ label, value, onChange, testID, last }: { label: string; value: string; onChange: (iso: string) => void; testID: string; last?: boolean }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const [temp, setTemp] = useState<Date>(d(value));
   const [webText, setWebText] = useState(value);
+  const rowStyle = [styles.row, !last && styles.divider];
 
   if (Platform.OS === "web") {
     return (
-      <View style={styles.row}>
+      <View style={rowStyle}>
         <Text style={styles.label}>{label}</Text>
         <TextInput
           testID={testID}
@@ -30,7 +31,6 @@ export function DateField({ label, value, onChange, testID }: { label: string; v
           }}
           style={styles.input}
         />
-        <Text style={styles.week}>{week(value)}</Text>
       </View>
     );
   }
@@ -46,12 +46,11 @@ export function DateField({ label, value, onChange, testID }: { label: string; v
 
   return (
     <>
-      <Pressable testID={testID} onPress={openPicker} style={styles.row}>
+      <Pressable testID={testID} onPress={openPicker} style={rowStyle}>
         <Text style={styles.label}>{label}</Text>
         <Text style={styles.value} numberOfLines={1}>
           {fmtLong(value)}
         </Text>
-        <Text style={styles.week}>{week(value)}</Text>
       </Pressable>
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)} />
@@ -72,11 +71,11 @@ export function DateField({ label, value, onChange, testID }: { label: string; v
 }
 
 const useStyles = makeStyles((c) => ({
-  row: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, minHeight: 48, gap: spacing.md, borderBottomWidth: 1, borderBottomColor: c.divider },
+  row: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, minHeight: 48, gap: spacing.md },
+  divider: { borderBottomWidth: 1, borderBottomColor: c.divider },
   label: { width: 110, fontFamily: fonts.regular, fontSize: 16, color: c.onSurface },
   value: { flex: 1, fontFamily: fonts.medium, fontSize: 15, color: c.brandPrimary, textTransform: "capitalize" },
   input: { flex: 1, fontFamily: fonts.regular, fontSize: 16, color: c.onSurface, paddingVertical: spacing.md },
-  week: { fontFamily: fonts.mono, fontSize: 12, color: c.muted },
   backdrop: { flex: 1, backgroundColor: c.overlay },
   sheet: { backgroundColor: c.surface, borderTopLeftRadius: radius.lg + 4, borderTopRightRadius: radius.lg + 4, padding: spacing.lg, gap: spacing.md },
 }));

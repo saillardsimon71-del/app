@@ -9,14 +9,19 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.tasktrackerpgp.bj82w0"
+      "bundleIdentifier": "com.emergent.tasktrackerpgp.bj82w0",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Photographiez les croquis et idées du client",
+        "NSPhotoLibraryUsageDescription": "Ajoutez des dessins du client à vos projets"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#4A6B53"
       },
-      "package": "com.emergent.tasktrackerpgp.bj82w0"
+      "package": "com.emergent.tasktrackerpgp.bj82w0",
+      "permissions": ["android.permission.CAMERA", "android.permission.READ_MEDIA_IMAGES"]
     },
     "web": {
       "bundler": "metro",
@@ -40,7 +45,14 @@
       "expo-web-browser",
       "expo-status-bar",
       "@react-native-vector-icons/ionicons",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ajoutez des dessins du client à vos projets",
+          "cameraPermission": "Photographiez les croquis et idées du client"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

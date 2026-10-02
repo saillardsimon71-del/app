@@ -6,7 +6,7 @@ import { useClients } from "@/src/api";
 import { ScreenHeader } from "@/src/components/screen-header";
 import { Button, CenterState, IconButton, Ionicons, PressScale, Txt } from "@/src/components/ui";
 import { usesNativeTabs } from "@/src/navigation";
-import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
+import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 export default function Clients() {
   const styles = useStyles();
@@ -44,25 +44,13 @@ export default function Clients() {
               <View style={{ flex: 1, gap: 2 }}>
                 <Txt variant="headline" numberOfLines={1}>{item.name}</Txt>
                 <Txt variant="caption" numberOfLines={1}>
-                  {item.contact || "Aucun contact"} · {item.project_count ?? 0} projet{(item.project_count ?? 0) > 1 ? "s" : ""}
-                </Txt>
-              </View>
-              <View style={styles.delay}>
-                <Ionicons name="hourglass-outline" size={12} color={colors.onSurfaceSecondary} />
-                <Txt variant="caption" color={colors.onSurfaceSecondary} style={{ fontFamily: fonts.mono }}>
-                  {item.validation_delay_days} j
+                  {(item.project_count ?? 0) === 0 ? "Aucun projet" : `${item.project_count} projet${(item.project_count ?? 0) > 1 ? "s" : ""}`}
+                  {item.contact ? ` · ${item.contact}` : ""}
                 </Txt>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.borderStrong} />
             </PressScale>
           )}
-          ListHeaderComponent={
-            list.length ? (
-              <Txt variant="caption" style={styles.hint}>
-                Le délai de validation client (en jours) ajuste chaque étape Retour / approbation et Homologation de ses projets.
-              </Txt>
-            ) : null
-          }
           ListEmptyComponent={
             <CenterState
               testID="clients-empty"
@@ -81,11 +69,9 @@ export default function Clients() {
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surfaceSecondary },
   content: { padding: spacing.lg },
-  hint: { marginBottom: spacing.md, marginHorizontal: spacing.xs, lineHeight: 17 },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: c.surface, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, minHeight: 64 },
   first: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg },
   last: { borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg },
   divider: { borderBottomWidth: 1, borderBottomColor: c.divider },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.brandTertiary, alignItems: "center", justifyContent: "center" },
-  delay: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: c.surfaceSecondary, paddingHorizontal: spacing.sm, height: 24, borderRadius: radius.pill },
 }));

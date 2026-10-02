@@ -7,6 +7,7 @@ export const d = (iso: string) => parseISO(iso.slice(0, 10));
 export const fmtShort = (iso: string) => format(d(iso), "d MMM", { locale: fr });
 export const fmtDate = (iso: string) => format(d(iso), "d MMM yyyy", { locale: fr });
 export const fmtNum = (iso: string) => format(d(iso), "dd/MM/yyyy");
+export const fmtNumShort = (iso: string) => format(d(iso), "dd/MM/yy");
 export const fmtLong = (iso: string) => format(d(iso), "EEEE d MMMM yyyy", { locale: fr });
 export const week = (iso: string) => `S${getISOWeek(d(iso))}`;
 export const toISO = (date: Date) => format(date, "yyyy-MM-dd");

@@ -1,19 +1,24 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File
+from fastapi.responses import Response
+from fastapi.concurrency import run_in_threadpool
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import uuid
 from pathlib import Path
 from pydantic import BaseModel, Field, BeforeValidator, ConfigDict
 from typing import Annotated, Literal, Optional
 from datetime import datetime, timezone, date, timedelta
 from bson import ObjectId
-
-from planning import compute_plan, lever_suggestions, summarize, TYPE_DEFAULTS
+import requests
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+from planning import compute_plan, lever_suggestions, summarize, TYPE_DEFAULTS  # noqa: E402
+from storage import APP_NAME, get_object, init_storage, put_object  # noqa: E402
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -80,6 +85,15 @@ class Step(BaseModel):
 ProjectType = Literal["NPD", "DUP", "FLK", "MLD"]
 
 
+class Photo(BaseModel):
+    id: str
+    path: str
+    name: str
+    content_type: str
+    size: int
+    created_at: str = Field(default_factory=now_iso)
+
+
 class ProjectIn(BaseModel):
     name: str = Field(min_length=1)
     code: Optional[str] = None
@@ -121,6 +135,7 @@ class Project(BaseDocument):
     decor_cycles: int = 3
     notes: Optional[str] = None
     archived: bool = False
+    photos: list[Photo] = []
     steps: list[Step] = []
     start_date: str
     total_days: int
@@ -291,7 +306,7 @@ async def save_replan(p: Project, data: ProjectIn) -> Project:
         old = prev.get(s["key"])
         steps.append(Step(**s, done=old.done if old else False, done_at=old.done_at if old else None))
     d = data.plan_input()
-    new = Project(**{**d, **plan, "steps": steps, "created_at": p.created_at, "updated_at": now_iso()})
+    new = Project(**{**d, **plan, "steps": steps, "photos": p.photos, "created_at": p.created_at, "updated_at": now_iso()})
     await db.projects.replace_one({"_id": ObjectId(p.id)}, new.to_mongo())
     new.id = p.id
     return new
@@ -331,6 +346,61 @@ async def delete_project(pid: str):
     await load_project(pid)
     await db.projects.delete_one({"_id": ObjectId(pid)})
     return {"ok": True}
+
+
+# Photos (croquis, idées client) — stockage objet
+MAX_PHOTO_BYTES = 15 * 1024 * 1024
+EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/heif": "heif"}
+
+
+@api_router.post("/projects/{pid}/photos")
+async def upload_photo(pid: str, file: UploadFile = File(...)):
+    p = await load_project(pid)
+    ctype = (file.content_type or "").lower()
+    if ctype not in EXT:
+        raise HTTPException(400, "Format non pris en charge (JPEG, PNG, WebP ou HEIC)")
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "Fichier vide")
+    if len(data) > MAX_PHOTO_BYTES:
+        raise HTTPException(400, "Photo trop lourde (15 Mo max)")
+    photo_id = uuid.uuid4().hex
+    path = f"{APP_NAME}/uploads/{pid}/{photo_id}.{EXT[ctype]}"
+    try:
+        result = await run_in_threadpool(put_object, path, data, ctype)
+    except requests.HTTPError as e:
+        status = e.response.status_code if e.response is not None else 500
+        if status == 402:
+            raise HTTPException(402, "Stockage épuisé : rechargez votre solde pour ajouter des photos")
+        logger.exception("upload failed")
+        raise HTTPException(502, "Le stockage des photos est indisponible")
+    photo = Photo(id=photo_id, path=result["path"], name=file.filename or f"{photo_id}.{EXT[ctype]}",
+                  content_type=ctype, size=len(data))
+    await db.projects.update_one({"_id": ObjectId(pid)},
+                                 {"$push": {"photos": photo.model_dump()}, "$set": {"updated_at": now_iso()}})
+    p.photos.append(photo)
+    return await project_out(p)
+
+
+@api_router.delete("/projects/{pid}/photos/{photo_id}")
+async def delete_photo(pid: str, photo_id: str):
+    p = await load_project(pid)
+    if not any(ph.id == photo_id for ph in p.photos):
+        raise HTTPException(404, "Photo introuvable")
+    await db.projects.update_one({"_id": ObjectId(pid)},
+                                 {"$pull": {"photos": {"id": photo_id}}, "$set": {"updated_at": now_iso()}})
+    return await project_out(await load_project(pid))
+
+
+@api_router.get("/files/{path:path}")
+async def read_file(path: str):
+    if not path.startswith(f"{APP_NAME}/"):
+        raise HTTPException(404, "Fichier introuvable")
+    try:
+        content, ctype = await run_in_threadpool(get_object, path)
+    except requests.HTTPError:
+        raise HTTPException(404, "Fichier introuvable")
+    return Response(content=content, media_type=ctype, headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 # Dashboard
@@ -423,6 +493,14 @@ app.add_middleware(
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+@app.on_event("startup")
+async def startup_storage():
+    try:
+        await run_in_threadpool(init_storage)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Object storage init failed: %s", e)
 
 
 @app.on_event("shutdown")
