@@ -1,0 +1,34 @@
+{
+  "summary": "Comprehensive first-run testing of PGP Glass Tracker (Expo web + FastAPI). Backend: 11/11 pytest tests PASS covering health, settings get/put, demo seed idempotency, planning preview reference-NPD invariants (start=2026-01-01, total_days=337, total_weeks=49, levers glass≈7.7w & parallel≈7w), NPD glass=2+parallele ≈33 weeks, FLK removes 'verre' phase, preseries_needed=false removes 'preserie' phase, PTF packaging uses ptf_lead_days (55) as emb_pret duration, Client CRUD with delete-blocked (400) & re-plan on validation_delay change, Project CRUD/PATCH step/archive/delete, PUT preserves done flags on matching step keys, Dashboard payload shape. Frontend (390x844 mobile viewport): 4 tabs present, Accueil metrics all render, late alert tap navigates to project detail, Projets search + 4 filter chips + 3 cards + new button, new-project form end-to-end (type cards, type helper + q1-oui, name, client chips, mad-date=2026-12-04, glass stepper, preseries switch, live preview-total-weeks=46 sem, preview-gantt, preview-lever-apply-glass visible), save navigates to project detail. Project detail: step toggle updates progress text (13/21 62% → 14/21 67%), edit/delete/archive-row/confirm-sheet-confirm-button all present and working. Clients: add client flow works, delete client with projects shows error 'Ce client a des projets. Supprimez-les d'abord.', delete client without projects succeeds. Réglages: order-offset stepper (-plus/-minus) works, settings-save-button appears only when dirty. Only shadow* style deprecation warnings on web (benign). No red screens, no console errors, no deprecated expo packages detected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "shadow* style props", "issue": "React Native Web deprecation warning: 'shadow*' style props are deprecated. Use 'boxShadow'. Observed in console. Not blocking but should be migrated. Reference: /app/frontend/app/**/*.tsx (any shadow* usage)."}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_api.py", "/app/backend/tests/conftest.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "(Minor) Migrate shadow* RN style props to boxShadow for React Native Web parity (does not break mobile).",
+    "(Minor) The stepper component applies the parent testID only to inner +/- buttons; querying root 'client-form-delay' / 'settings-order-offset' returns null. Current -plus/-minus work for testing; consider also setting testID on the parent View for better selector coverage."
+  ],
+  "critical_code_review_comments": [
+    "server.py replan_client_projects rebuilds ProjectIn from Project.model_dump(); works because Project superset of ProjectIn fields — brittle if a field diverges. Consider explicit mapping.",
+    "dashboard() iterates projects then sorts late_steps by -days_late; good. counts dict only lists 5 statuses; fine.",
+    "planning.py uses `+ 0.5` + round for total_weeks (banker rounding on .5). For reference NPD total_days=337 → 337/7+0.5=48.64 → round=49 (correct). Edge cases could ceil-off; acceptable per spec match."
+  ],
+  "updated_files": [
+    "/app/backend/tests/conftest.py (new)",
+    "/app/backend/tests/test_api.py (new)",
+    "/app/test_reports/iteration_1.json (new)",
+    "/app/test_reports/pytest/pytest_results.xml (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Created & cleaned up transient TEST_UI_new_project (deleted) and TEST_UI_client (deleted via UI). Demo seed (2 clients + 3 projects) preserved as expected.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend URL: https://task-tracker-pgp.preview.emergentagent.com (env key is EXPO_PUBLIC_BACKEND_URL). Container date = 2026-10-02. Demo seed is idempotent. For Stepper widgets, use testID '{name}-plus' / '{name}-minus' (parent testID not applied to root View). Project form MAD date on web is a plain text input accepting 'AAAA-MM-JJ'. Late alert testIDs are 'dashboard-step-{project_id}-{key}' (not 'dashboard-late-'). Client row testID is 'client-row-{id}'. Client form delete uses 'client-form-delete-row' (not -button); confirmation uses 'confirm-sheet-confirm-button'.",
+  "rca_of_issue": "N/A — no defects found."
+}

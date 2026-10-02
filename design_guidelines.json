@@ -1,0 +1,175 @@
+{
+  "app_name": "PGP Tracker",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "Un outil de suivi de projet B2B ultra-propre, natif Apple, axé sur la lisibilité des dates et la clarté des statuts.",
+  "color": {
+    "surface": "#FFFFFF",
+    "onSurface": "#1C1C1E",
+    "surfaceSecondary": "#F2F2F7",
+    "onSurfaceSecondary": "#3A3A3C",
+    "surfaceTertiary": "#E5E5EA",
+    "onSurfaceTertiary": "#8E8E93",
+    "surfaceInverse": "#1C1C1E",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#4A6B53",
+    "onBrand": "#FFFFFF",
+    "brandPrimary": "#4A6B53",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#385240",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#E7F0E9",
+    "onBrandTertiary": "#2C4233",
+    "success": "#34C759",
+    "onSuccess": "#FFFFFF",
+    "warning": "#FF9F0A",
+    "onWarning": "#FFFFFF",
+    "error": "#FF3B30",
+    "onError": "#FFFFFF",
+    "info": "#0A84FF",
+    "onInfo": "#FFFFFF",
+    "border": "#E5E5EA",
+    "borderStrong": "#C6C6C8",
+    "divider": "#E5E5EA",
+    "muted": "#8E8E93"
+  },
+  "typography": {
+    "displayFontFamily": "Geist",
+    "textFontFamily": "Geist",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous Apple-native padding. Forms use grouped list spacing.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 16,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Use expo-blur on bottom tab bar.",
+      "Use expo-blur on sticky headers over scrolling content.",
+      "Use expo-blur for floating actions."
+    ],
+    "dont's": [
+      "Do not blur individual list rows or form cells.",
+      "Do not over-blur the whole screen."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Accueil",
+      "purpose": "Dashboard providing a global overview of projects at risk, late steps, and upcoming deadlines.",
+      "states": {
+        "loading": "Centered spinner on surface.",
+        "empty": "No active projects. Show illustration and 'Créer un projet' CTA.",
+        "error": "Failed to load dashboard. Retry button."
+      },
+      "layout": "Large header. Top section uses a LazyVGrid for metric cards (e.g., '2 En retard' in error color, '1 À risque' in warning color). Below grid: list of 'Prochaines échéances' (upcoming deadlines) with dates formatted clearly in mono-style (use variant if possible, or Geist bold)."
+    },
+    {
+      "name": "Projets",
+      "purpose": "List of all active and past projects with quick filtering by type and status.",
+      "states": {
+        "loading": "Skeleton list rows.",
+        "empty": "Empty glass bottle image with 'Aucun projet trouvé'.",
+        "error": "Error fetching projects."
+      },
+      "layout": "Sticky header with horizontal ScrollView for filter chips (NPD, DUP, FLK, MLD) right below. List of project cards taking full width (minus md padding). Each card displays Client Name, Project Title, Date MAD, and a progress indicator. Navigation right icon inside card."
+    },
+    {
+      "name": "Création Projet (Wizard)",
+      "purpose": "Step-by-step form to create a project and calculate the retro-planning.",
+      "states": {
+        "loading": "Calculating retro-planning...",
+        "empty": "N/A",
+        "error": "Form validation error (e.g., MAD date too close)."
+      },
+      "layout": "Presented as a full-screen modal or Bottom Sheet. Strict iOS grouped list layout (white cells on surfaceSecondary background). Sticky primary CTA 'Calculer le planning' at the bottom inside a KeyboardAvoidingView."
+    },
+    {
+      "name": "Détail Projet",
+      "purpose": "Deep dive into a project, showing the timeline (Gantt) and allowing the PM to check off completed steps.",
+      "states": {
+        "loading": "Loading timeline...",
+        "empty": "N/A",
+        "error": "Failed to load project details."
+      },
+      "layout": "Header with hero image of the client's logo or a luxury glass bottle. Below: Vertical timeline. Each phase (Étude, Verre, Décoration...) is a node. Connected by vertical lines. Completed steps are filled with brandPrimary, upcoming are outlined. Tapping a step marks it done."
+    },
+    {
+      "name": "Clients",
+      "purpose": "List of clients and their specific validation delays.",
+      "states": {
+        "loading": "Loading clients...",
+        "empty": "No clients yet.",
+        "error": "Failed to load."
+      },
+      "layout": "Standard iOS list view. Simple rows with Client Logo (left) and Name + Validation Delay (right). Tap to edit."
+    }
+  ],
+  "images": {
+    "hero_detail": {
+      "url": "https://images.unsplash.com/photo-1594125311687-3b1b3eafa9f4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwyfHxwZXJmdW1lJTIwZ2xhc3MlMjBib3R0bGUlMjBsdXh1cnl8ZW58MHx8fHwxNzkwOTMwMTk5fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Luxury perfume glass bottle"
+    },
+    "empty_projects": {
+      "url": "https://images.unsplash.com/photo-1591704951890-0862b2e98acb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2OTV8MHwxfHNlYXJjaHwxfHxjbGVhbiUyMGVtcHR5JTIwZ2xhc3MlMjBib3R0bGV8ZW58MHx8fHwxNzkwOTMwMTg1fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Clean empty glass bottle"
+    },
+    "manufacturing_backdrop": {
+      "url": "https://images.unsplash.com/photo-1608126841830-53832c4b326f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2ODl8MHwxfHNlYXJjaHwxfHxnbGFzcyUyMG1hbnVmYWN0dXJpbmclMjBwcm9jZXNzfGVufDB8fHx8MTc5MDkzMDE4NXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Glass manufacturing process"
+    },
+    "client_dior": {
+      "url": "https://images.unsplash.com/photo-1759563874711-b026ac0b6c6e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzl8MHwxfHNlYXJjaHwxfHxjb3NtZXRpY3MlMjBsb2dvfGVufDB8fHx8MTc5MDkzMDE5OHww&ixlib=rb-4.1.0&q=85",
+      "alt": "Dior cosmetic brand logo"
+    }
+  },
+  "haptics": {
+    "mark_step_done": "ImpactFeedbackStyle.Medium",
+    "tab_change": "ImpactFeedbackStyle.Light",
+    "primary_button_press": "ImpactFeedbackStyle.Light",
+    "filter_chip_toggle": "SelectionFeedback"
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the '1 iOS-Native Clean' personality. The app should feel like a native Apple productivity tool.",
+    "Use French for all UI elements and placeholders.",
+    "Implement a strict iOS grouped list style for forms and settings: #F2F2F7 background, #FFFFFF cells, 1pt dividers between cells (not top/bottom of the group).",
+    "For the Timeline in 'Détail Projet', use vertical lines and circles to create a native Gantt-like step tracker.",
+    "Ensure 'mark step done' includes haptic feedback as mapped in the haptics block.",
+    "Keep tab count to 4: Accueil, Projets, Clients, Réglages.",
+    "Always place primary CTAs (like 'Créer' or 'Calculer') sticky at the bottom of the screen, accounting for the safe area.",
+    "Never use blue/indigo tones. We are using #4A6B53 (Moss Green) as the primary brand color to reflect glass/eco/premium vibes."
+  ]
+}
